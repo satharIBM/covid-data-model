@@ -4,12 +4,12 @@ import os
 import logging
 
 from libs.build_params import OUTPUT_DIR_DOD
-from libs.constants import INTERVENTIONS
+from libs.enums import Intervention
 from libs.validate_results import validate_states_df, validate_counties_df, validate_states_shapefile, validate_counties_shapefile
 from libs.build_dod_dataset import get_usa_by_county_df, get_usa_by_states_df, get_usa_county_shapefile, get_usa_state_shapefile
 from libs.build_dod_dataset import get_usa_by_county_with_projection_df
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 PROD_BUCKET = "data.covidactnow.org"
 
 class DatasetDeployer():
@@ -65,15 +65,15 @@ def upload_csv(key_name, csv):
     obj.persist()
     logger.info(f"Generated csv for {key_name}")
 
-def deploy(should_run_validation):
+def deploy(should_run_validation=True):
     """The entry function for invocation
 
     """
-    for intervention in INTERVENTIONS: 
-        logger.info(f"Starting to generate files for {intervention['intervention_name']}.")
+    for intervention_enum in list(Intervention): 
+        logger.info(f"Starting to generate files for {intervention_enum.name}.")
 
-        states_key_name = f'states.{intervention["intervention_name"]}'
-        states_df = get_usa_by_states_df(intervention["intervention_enum"])
+        states_key_name = f'states.{intervention_enum.name}'
+        states_df = get_usa_by_states_df(intervention_enum.value)
         if should_run_validation: 
             validate_states_df(states_key_name, states_df)
         upload_csv(states_key_name, states_df.to_csv())
@@ -81,16 +81,16 @@ def deploy(should_run_validation):
         states_shp = BytesIO()
         states_shx = BytesIO()
         states_dbf = BytesIO()
-        get_usa_state_shapefile(states_shp, states_shx, states_dbf, intervention["intervention_enum"])
+        get_usa_state_shapefile(states_shp, states_shx, states_dbf, intervention_enum.value)
         if should_run_validation: 
             validate_states_shapefile(states_key_name, states_shp, states_shx, states_dbf)
         DatasetDeployer(key=f'{states_key_name}.shp', body=states_shp.getvalue()).persist()
         DatasetDeployer(key=f'{states_key_name}.shx', body=states_shx.getvalue()).persist()
         DatasetDeployer(key=f'{states_key_name}.dbf', body=states_dbf.getvalue()).persist()
-        logger.info(f"Generated state shape files for {intervention['intervention_name']}")
+        logger.info(f"Generated state shape files for {intervention_enum.name}")
 
-        counties_key_name = f'counties.{intervention["intervention_name"]}'
-        counties_df = get_usa_by_county_with_projection_df(intervention["intervention_enum"])
+        counties_key_name = f'counties.{intervention_enum.name}'
+        counties_df = get_usa_by_county_with_projection_df(intervention_enum.value)
         if should_run_validation: 
             validate_counties_df(counties_key_name, counties_df)
         upload_csv(counties_key_name, counties_df.to_csv())
@@ -98,13 +98,13 @@ def deploy(should_run_validation):
         counties_shp = BytesIO()
         counties_shx = BytesIO()
         counties_dbf = BytesIO()
-        get_usa_county_shapefile(counties_shp, counties_shx, counties_dbf, intervention["intervention_enum"])
+        get_usa_county_shapefile(counties_shp, counties_shx, counties_dbf, intervention_enum.value)
         if should_run_validation: 
             validate_counties_shapefile(counties_key_name, counties_shp, counties_shx, counties_dbf)
         DatasetDeployer(key=f'{counties_key_name}.shp', body=counties_shp.getvalue()).persist()
-        DatasetDeployer(key=f'{counties_key_name}.shp', body=counties_shx.getvalue()).persist()
-        DatasetDeployer(key=f'{counties_key_name}.shp', body=counties_dbf.getvalue()).persist()
-        logger.info(f"Generated counties shape files for {intervention['intervention_name']}")
+        DatasetDeployer(key=f'{counties_key_name}.shx', body=counties_shx.getvalue()).persist()
+        DatasetDeployer(key=f'{counties_key_name}.dbf', body=counties_dbf.getvalue()).persist()
+        logger.info(f"Generated counties shape files for {intervention_enum.name}")
 
     print('finished dod job')
 
